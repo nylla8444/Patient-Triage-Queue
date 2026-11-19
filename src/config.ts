@@ -11,4 +11,5 @@ function readPort(): number {
 
 export const config = {
   port: readPort(),
+  dbPath: process.env.DB_PATH || "data/triage.db",
 };
