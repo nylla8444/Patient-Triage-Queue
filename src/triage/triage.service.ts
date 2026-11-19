@@ -1,6 +1,6 @@
 import { notFound } from "../errors.js";
 import type { PatientRepository } from "./triage.repository.js";
-import type { Patient, QueueEntry } from "./triage.types.js";
+import type { Patient, PatientStatus, QueueEntry } from "./triage.types.js";
 import type { RegisterPatientInput } from "./triage.validation.js";
 
 /** Returns the current time. Tests pass a fixed clock so timestamps are predictable. */
@@ -31,6 +31,11 @@ export function createTriageService(patients: PatientRepository, now: Clock = ()
       const patient = patients.findById(id);
       if (!patient) throw notFound(`Patient ${id} not found`);
       return patient;
+    },
+
+    /** All patients in the database, whatever their status (records are never deleted, D9). */
+    listPatients(status?: PatientStatus): Patient[] {
+      return patients.findAll(status);
     },
 
     /** Waiting patients in the order they will be seen, with their position and waiting time. */

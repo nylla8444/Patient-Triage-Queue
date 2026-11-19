@@ -87,6 +87,12 @@ export function createPatientRepository(db: Db) {
 
   const callNextStatement = db.prepare<[string], PatientRow>(CALL_NEXT_SQL);
 
+  // Registration order (id). This is NOT queue order: GET /queue is the place for that.
+  const findAllStatement = db.prepare<[], PatientRow>("SELECT * FROM patients ORDER BY id");
+  const findByStatusStatement = db.prepare<[PatientStatus], PatientRow>(
+    "SELECT * FROM patients WHERE status = ? ORDER BY id",
+  );
+
   return {
     insert(record: NewPatientRecord): Patient {
       const row = insertStatement.get(record);
@@ -108,6 +114,12 @@ export function createPatientRepository(db: Db) {
     claimNextWaiting(calledAt: string): Patient | undefined {
       const row = callNextStatement.get(calledAt);
       return row ? toPatient(row) : undefined;
+    },
+
+    /** Every patient ever registered (or only those with one status), oldest registration first. */
+    findAll(status?: PatientStatus): Patient[] {
+      const rows = status ? findByStatusStatement.all(status) : findAllStatement.all();
+      return rows.map(toPatient);
     },
   };
 }
