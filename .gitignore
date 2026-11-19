@@ -4,6 +4,7 @@ dist/
 coverage/
 
 # local SQLite database files
+data/
 *.db
 *.db-shm
 *.db-wal
