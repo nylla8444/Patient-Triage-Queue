@@ -25,5 +25,17 @@ export function createTriageRouter(service: TriageService) {
     res.json({ count: queue.length, data: queue });
   });
 
+  router.post("/queue/next", (_req, res) => {
+    const patient = service.callNext();
+
+    if (!patient) {
+      // Empty queue: the request worked, there's just nobody to call (D10).
+      res.status(204).end();
+      return;
+    }
+
+    res.json(patient);
+  });
+
   return router;
 }

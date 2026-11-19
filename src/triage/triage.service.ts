@@ -43,6 +43,14 @@ export function createTriageService(patients: PatientRepository, now: Clock = ()
         waitingMinutes: minutesBetween(new Date(patient.arrivedAt), current),
       }));
     },
+
+    /**
+     * Calls the patient at position 1: they leave the queue and go to IN_TREATMENT.
+     * Returns undefined when nobody is waiting, which is normal, not an error (D10).
+     */
+    callNext(): Patient | undefined {
+      return patients.claimNextWaiting(now().toISOString());
+    },
   };
 }
 
