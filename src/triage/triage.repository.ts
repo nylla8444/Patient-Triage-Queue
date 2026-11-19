@@ -38,6 +38,17 @@ function toPatient(row: PatientRow): Patient {
   };
 }
 
+/**
+ * The queue ordering rule (PLAN §5, D3, D5): most urgent level first, then whoever
+ * arrived first, then lowest id as a final tie-break. The ORDER BY matches the
+ * idx_queue_order index column for column, so SQLite reads rows already sorted.
+ */
+export const WAITING_QUEUE_SQL = `
+  SELECT * FROM patients
+  WHERE status = 'WAITING'
+  ORDER BY triage_level ASC, arrived_at ASC, id ASC
+`;
+
 /** All SQL for patients lives here. */
 export function createPatientRepository(db: Db) {
   const insertStatement = db.prepare<NewPatientRecord, PatientRow>(`
@@ -50,6 +61,8 @@ export function createPatientRepository(db: Db) {
     "SELECT * FROM patients WHERE id = ?",
   );
 
+  const waitingQueueStatement = db.prepare<[], PatientRow>(WAITING_QUEUE_SQL);
+
   return {
     insert(record: NewPatientRecord): Patient {
       const row = insertStatement.get(record);
@@ -60,6 +73,11 @@ export function createPatientRepository(db: Db) {
     findById(id: number): Patient | undefined {
       const row = findByIdStatement.get(id);
       return row ? toPatient(row) : undefined;
+    },
+
+    /** Waiting patients, already in queue order. */
+    findWaitingInQueueOrder(): Patient[] {
+      return waitingQueueStatement.all().map(toPatient);
     },
   };
 }
