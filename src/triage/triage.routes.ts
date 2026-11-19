@@ -19,5 +19,11 @@ export function createTriageRouter(service: TriageService) {
     res.json(service.getPatient(id));
   });
 
+  router.get("/queue", (_req, res) => {
+    const queue = service.getQueue();
+
+    res.json({ count: queue.length, data: queue });
+  });
+
   return router;
 }

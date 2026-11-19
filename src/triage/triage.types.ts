@@ -15,3 +15,14 @@ export interface Patient {
   calledAt: string | null;
   finishedAt: string | null;
 }
+
+/**
+ * A patient as shown in GET /queue. position and waitingMinutes are calculated
+ * on every request, never stored, so they can't go stale (PLAN §7).
+ */
+export interface QueueEntry extends Patient {
+  /** 1 = seen next. */
+  position: number;
+  /** Whole minutes since arrival, rounded down. */
+  waitingMinutes: number;
+}
