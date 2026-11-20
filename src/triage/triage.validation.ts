@@ -2,7 +2,11 @@ import { z } from "zod";
 import { validationError } from "../errors.js";
 import { CLOSING_STATUSES, PATIENT_STATUSES } from "./triage.types.js";
 
-const NOT_AN_OBJECT = { error: "Request body must be a JSON object" };
+// The Content-Type hint covers the most common mistake: sending JSON as plain text,
+// in which case the server never parses the body at all.
+const NOT_AN_OBJECT = {
+  error: "Request body must be a JSON object, sent with Content-Type: application/json",
+};
 
 /** Whole number 1–5. Shared by registration and re-triage so the rule can't drift apart. */
 const triageLevelSchema = z
@@ -61,7 +65,10 @@ export const closeVisitSchema = z.object(
 export const patientIdSchema = z
   .string()
   .regex(/^[1-9]\d*$/, "id must be a positive whole number")
-  .transform(Number);
+  .transform(Number)
+  // Above 2^53 JavaScript can't hold the number exactly (…999 becomes …1000),
+  // so the error would talk about a different id than the one sent.
+  .refine((id) => Number.isSafeInteger(id), "id is too large");
 
 /**
  * Query string of GET /patients. ?status is optional; without it, everyone is listed.

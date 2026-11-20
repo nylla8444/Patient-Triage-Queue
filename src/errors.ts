@@ -2,7 +2,10 @@ export type ErrorCode =
   | "VALIDATION_ERROR"
   | "BAD_REQUEST"
   | "NOT_FOUND"
+  | "METHOD_NOT_ALLOWED"
   | "INVALID_TRANSITION"
+  | "PAYLOAD_TOO_LARGE"
+  | "UNSUPPORTED_MEDIA_TYPE"
   | "INTERNAL_ERROR";
 
 export interface ErrorDetail {
