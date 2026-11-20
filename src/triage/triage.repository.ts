@@ -93,6 +93,16 @@ export function createPatientRepository(db: Db) {
     "SELECT * FROM patients WHERE status = ? ORDER BY id",
   );
 
+  // The status check is part of the UPDATE itself, so a patient who is called
+  // at the same moment can't be re-triaged after leaving the queue (same idea as D8).
+  // arrived_at is not touched: re-triage keeps the original arrival time (D6).
+  const retriageStatement = db.prepare<{ id: number; triageLevel: TriageLevel }, PatientRow>(`
+    UPDATE patients
+    SET triage_level = @triageLevel
+    WHERE id = @id AND status = 'WAITING'
+    RETURNING *
+  `);
+
   return {
     insert(record: NewPatientRecord): Patient {
       const row = insertStatement.get(record);
@@ -120,6 +130,15 @@ export function createPatientRepository(db: Db) {
     findAll(status?: PatientStatus): Patient[] {
       const rows = status ? findByStatusStatement.all(status) : findAllStatement.all();
       return rows.map(toPatient);
+    },
+
+    /**
+     * Changes the level of a WAITING patient. Returns undefined if the patient
+     * doesn't exist or isn't waiting; the service works out which.
+     */
+    updateWaitingTriageLevel(id: number, triageLevel: TriageLevel): Patient | undefined {
+      const row = retriageStatement.get({ id, triageLevel });
+      return row ? toPatient(row) : undefined;
     },
   };
 }

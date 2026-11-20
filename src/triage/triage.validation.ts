@@ -2,6 +2,15 @@ import { z } from "zod";
 import { validationError } from "../errors.js";
 import { PATIENT_STATUSES } from "./triage.types.js";
 
+const NOT_AN_OBJECT = { error: "Request body must be a JSON object" };
+
+/** Whole number 1–5. Shared by registration and re-triage so the rule can't drift apart. */
+const triageLevelSchema = z
+  .number({ error: "triageLevel is required and must be a number from 1 to 5" })
+  .int("triageLevel must be a whole number from 1 to 5")
+  .min(1, "triageLevel must be between 1 and 5")
+  .max(5, "triageLevel must be between 1 and 5");
+
 /**
  * Body of POST /patients. Fields the client must not control (id, status, arrivedAt)
  * are not listed, so Zod drops them if they are sent.
@@ -25,16 +34,15 @@ export const registerPatientSchema = z.object(
       .trim()
       .min(1, "complaint cannot be empty")
       .max(500, "complaint must be at most 500 characters"),
-    triageLevel: z
-      .number({ error: "triageLevel is required and must be a number from 1 to 5" })
-      .int("triageLevel must be a whole number from 1 to 5")
-      .min(1, "triageLevel must be between 1 and 5")
-      .max(5, "triageLevel must be between 1 and 5"),
+    triageLevel: triageLevelSchema,
   },
-  { error: "Request body must be a JSON object" },
+  NOT_AN_OBJECT,
 );
 
 export type RegisterPatientInput = z.output<typeof registerPatientSchema>;
+
+/** Body of PATCH /patients/:id/triage. Only the level can change; anything else sent is dropped. */
+export const retriageSchema = z.object({ triageLevel: triageLevelSchema }, NOT_AN_OBJECT);
 
 /** Route parameter :id, e.g. /patients/12. Rejects "abc", "0", "-1", "1.5". */
 export const patientIdSchema = z

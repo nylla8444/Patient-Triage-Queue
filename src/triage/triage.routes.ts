@@ -5,7 +5,9 @@ import {
   parseOrThrow,
   patientIdSchema,
   registerPatientSchema,
+  retriageSchema,
 } from "./triage.validation.js";
+import type { TriageLevel } from "./triage.types.js";
 
 /** HTTP only: read the request, call the service, send the response. */
 export function createTriageRouter(service: TriageService) {
@@ -29,6 +31,13 @@ export function createTriageRouter(service: TriageService) {
     const id = parseOrThrow(patientIdSchema, req.params.id, "id");
 
     res.json(service.getPatient(id));
+  });
+
+  router.patch("/patients/:id/triage", (req, res) => {
+    const id = parseOrThrow(patientIdSchema, req.params.id, "id");
+    const { triageLevel } = parseOrThrow(retriageSchema, req.body);
+
+    res.json(service.retriage(id, triageLevel as TriageLevel));
   });
 
   router.get("/queue", (_req, res) => {
