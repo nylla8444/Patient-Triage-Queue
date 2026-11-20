@@ -13,6 +13,10 @@ export interface AppOptions {
 export function createApp(db: Db, options: AppOptions = {}) {
   const app = express();
 
+  // Express adds "X-Powered-By: Express" to every response by default. It helps nobody
+  // using the API and tells attackers which framework to look up exploits for.
+  app.disable("x-powered-by");
+
   // The largest valid request body is well under 1 KB (all fields at max length),
   // so 10 KB leaves room while refusing oversized bodies early (D27).
   app.use(express.json({ limit: "10kb" }));

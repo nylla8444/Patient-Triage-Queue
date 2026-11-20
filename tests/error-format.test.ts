@@ -145,6 +145,14 @@ describe("specific error details", () => {
     expect(res.body.error.message).toBe("Request body is too large (max 10240 bytes)");
   });
 
+  it("doesn't advertise the framework in response headers", async () => {
+    const ok = await request(app).get("/health");
+    const error = await request(app).get("/nope");
+
+    expect(ok.headers["x-powered-by"]).toBeUndefined();
+    expect(error.headers["x-powered-by"]).toBeUndefined();
+  });
+
   it("a normal body with every field at its maximum length is still accepted", async () => {
     const res = await request(app)
       .post("/patients")
