@@ -104,20 +104,21 @@ describe("GET /queue", () => {
   });
 
   it("shows only WAITING patients", async () => {
-    await arrive("08:00", "Ana", 3);
-    const ben = await arrive("08:01", "Ben", 3);
-    const carla = await arrive("08:02", "Carla", 3);
+    const ana = await arrive("08:00", "Ana", 3);
+    await arrive("08:01", "Ben", 3);
+    await arrive("08:02", "Carla", 3);
     const dan = await arrive("08:03", "Dan", 3);
 
-    // Endpoints for these come in steps 4 and 6, so set the status directly for now.
-    const setStatus = db.prepare("UPDATE patients SET status = ? WHERE id = ?");
-    setStatus.run("IN_TREATMENT", ben.id);
-    setStatus.run("DONE", carla.id);
-    setStatus.run("LEFT", dan.id);
+    // Ana and Ben are called; Ana's treatment finishes; Dan walks out.
+    await request(app).post("/queue/next").expect(200);
+    await request(app).post("/queue/next").expect(200);
+    await request(app).patch(`/patients/${ana.id}/status`).send({ status: "DONE" }).expect(200);
+    await request(app).patch(`/patients/${dan.id}/status`).send({ status: "LEFT" }).expect(200);
 
     const queue = await getQueue("08:10");
 
-    expect(names(queue)).toEqual(["Ana"]);
+    // Ana DONE, Ben IN_TREATMENT, Dan LEFT: only Carla is still waiting.
+    expect(names(queue)).toEqual(["Carla"]);
     expect(queue.count).toBe(1);
   });
 

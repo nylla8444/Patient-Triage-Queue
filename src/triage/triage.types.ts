@@ -6,6 +6,18 @@ export const PATIENT_STATUSES = ["WAITING", "IN_TREATMENT", "DONE", "LEFT"] as c
 
 export type PatientStatus = (typeof PATIENT_STATUSES)[number];
 
+/**
+ * The two ways a visit ends, and the only status each one may come from (PLAN §6, D9):
+ * - DONE: treatment finished, so the patient must be IN_TREATMENT
+ * - LEFT: walked out before being seen, so the patient must be WAITING
+ * IN_TREATMENT itself is only reachable through POST /queue/next.
+ */
+export const CLOSE_VISIT_FROM = { DONE: "IN_TREATMENT", LEFT: "WAITING" } as const;
+
+export type ClosingStatus = keyof typeof CLOSE_VISIT_FROM;
+
+export const CLOSING_STATUSES = ["DONE", "LEFT"] as const satisfies readonly ClosingStatus[];
+
 /** A patient as the API returns it (camelCase). The database uses snake_case. */
 export interface Patient {
   id: number;

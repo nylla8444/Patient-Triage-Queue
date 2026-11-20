@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { validationError } from "../errors.js";
-import { PATIENT_STATUSES } from "./triage.types.js";
+import { CLOSING_STATUSES, PATIENT_STATUSES } from "./triage.types.js";
 
 const NOT_AN_OBJECT = { error: "Request body must be a JSON object" };
 
@@ -43,6 +43,19 @@ export type RegisterPatientInput = z.output<typeof registerPatientSchema>;
 
 /** Body of PATCH /patients/:id/triage. Only the level can change; anything else sent is dropped. */
 export const retriageSchema = z.object({ triageLevel: triageLevelSchema }, NOT_AN_OBJECT);
+
+/**
+ * Body of PATCH /patients/:id/status. Only the two closing statuses are accepted:
+ * a patient is never set back to WAITING, and IN_TREATMENT only comes from call-next (D9).
+ */
+export const closeVisitSchema = z.object(
+  {
+    status: z.enum(CLOSING_STATUSES, {
+      error: "status must be DONE or LEFT (patients go to IN_TREATMENT through POST /queue/next)",
+    }),
+  },
+  NOT_AN_OBJECT,
+);
 
 /** Route parameter :id, e.g. /patients/12. Rejects "abc", "0", "-1", "1.5". */
 export const patientIdSchema = z

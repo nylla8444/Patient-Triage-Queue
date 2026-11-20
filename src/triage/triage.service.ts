@@ -1,6 +1,13 @@
 import { invalidTransition, notFound } from "../errors.js";
 import type { PatientRepository } from "./triage.repository.js";
-import type { Patient, PatientStatus, QueueEntry, TriageLevel } from "./triage.types.js";
+import {
+  CLOSE_VISIT_FROM,
+  type ClosingStatus,
+  type Patient,
+  type PatientStatus,
+  type QueueEntry,
+  type TriageLevel,
+} from "./triage.types.js";
 import type { RegisterPatientInput } from "./triage.validation.js";
 
 /** Returns the current time. Tests pass a fixed clock so timestamps are predictable. */
@@ -70,6 +77,28 @@ export function createTriageService(patients: PatientRepository, now: Clock = ()
       if (!patient) throw notFound(`Patient ${id} not found`);
       throw invalidTransition(
         `Patient ${id} is ${patient.status}; only WAITING patients can be re-triaged`,
+      );
+    },
+
+    /**
+     * Ends a visit: IN_TREATMENT → DONE, or WAITING → LEFT. Any other move is refused,
+     * e.g. marking a WAITING patient DONE (they were never seen). Records are kept (D9).
+     */
+    closeVisit(id: number, status: ClosingStatus): Patient {
+      const requiredStatus = CLOSE_VISIT_FROM[status];
+      const updated = patients.closeVisit({
+        id,
+        newStatus: status,
+        requiredStatus,
+        finishedAt: now().toISOString(),
+      });
+      if (updated) return updated;
+
+      // Nothing changed: find out why, to send the right error.
+      const patient = patients.findById(id);
+      if (!patient) throw notFound(`Patient ${id} not found`);
+      throw invalidTransition(
+        `Patient ${id} is ${patient.status}; only ${requiredStatus} patients can be marked ${status}`,
       );
     },
   };
