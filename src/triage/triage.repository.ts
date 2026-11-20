@@ -1,5 +1,5 @@
 import type { Db } from "../db/connection.js";
-import type { Patient, PatientStatus, TriageLevel } from "./triage.types.js";
+import type { ClosingStatus, Patient, PatientStatus, TriageLevel } from "./triage.types.js";
 
 /** A row exactly as SQLite stores it. */
 interface PatientRow {
@@ -12,6 +12,13 @@ interface PatientRow {
   arrived_at: string;
   called_at: string | null;
   finished_at: string | null;
+}
+
+export interface CloseVisitRecord {
+  id: number;
+  newStatus: ClosingStatus;
+  requiredStatus: PatientStatus;
+  finishedAt: string;
 }
 
 export interface NewPatientRecord {
@@ -103,6 +110,15 @@ export function createPatientRepository(db: Db) {
     RETURNING *
   `);
 
+  // Same pattern as re-triage (D25): the "is the patient in the right status?" check
+  // is part of the UPDATE, so nothing can change the patient in between.
+  const closeVisitStatement = db.prepare<CloseVisitRecord, PatientRow>(`
+    UPDATE patients
+    SET status = @newStatus, finished_at = @finishedAt
+    WHERE id = @id AND status = @requiredStatus
+    RETURNING *
+  `);
+
   return {
     insert(record: NewPatientRecord): Patient {
       const row = insertStatement.get(record);
@@ -138,6 +154,15 @@ export function createPatientRepository(db: Db) {
      */
     updateWaitingTriageLevel(id: number, triageLevel: TriageLevel): Patient | undefined {
       const row = retriageStatement.get({ id, triageLevel });
+      return row ? toPatient(row) : undefined;
+    },
+
+    /**
+     * Ends a visit if the patient is currently in requiredStatus. Returns undefined if the
+     * patient doesn't exist or is in another status; the service works out which.
+     */
+    closeVisit(record: CloseVisitRecord): Patient | undefined {
+      const row = closeVisitStatement.get(record);
       return row ? toPatient(row) : undefined;
     },
   };

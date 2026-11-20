@@ -144,8 +144,9 @@ describe("re-triage is only for WAITING patients", () => {
 
   it.each(["DONE", "LEFT"])("returns 409 for a %s patient", async (status) => {
     const id = await arrive("08:00", "Ana", 3);
-    // The endpoint for this comes in step 6, so set the status directly for now.
-    db.prepare("UPDATE patients SET status = ? WHERE id = ?").run(status, id);
+    // DONE needs treatment first; LEFT is straight from the waiting room.
+    if (status === "DONE") await request(app).post("/queue/next").expect(200);
+    await request(app).patch(`/patients/${id}/status`).send({ status }).expect(200);
 
     const res = await retriage(id, { triageLevel: 1 });
 

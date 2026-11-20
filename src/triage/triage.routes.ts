@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { TriageService } from "./triage.service.js";
 import {
+  closeVisitSchema,
   listPatientsQuerySchema,
   parseOrThrow,
   patientIdSchema,
@@ -38,6 +39,13 @@ export function createTriageRouter(service: TriageService) {
     const { triageLevel } = parseOrThrow(retriageSchema, req.body);
 
     res.json(service.retriage(id, triageLevel as TriageLevel));
+  });
+
+  router.patch("/patients/:id/status", (req, res) => {
+    const id = parseOrThrow(patientIdSchema, req.params.id, "id");
+    const { status } = parseOrThrow(closeVisitSchema, req.body);
+
+    res.json(service.closeVisit(id, status));
   });
 
   router.get("/queue", (_req, res) => {
