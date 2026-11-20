@@ -1,6 +1,6 @@
-import { notFound } from "../errors.js";
+import { invalidTransition, notFound } from "../errors.js";
 import type { PatientRepository } from "./triage.repository.js";
-import type { Patient, PatientStatus, QueueEntry } from "./triage.types.js";
+import type { Patient, PatientStatus, QueueEntry, TriageLevel } from "./triage.types.js";
 import type { RegisterPatientInput } from "./triage.validation.js";
 
 /** Returns the current time. Tests pass a fixed clock so timestamps are predictable. */
@@ -55,6 +55,22 @@ export function createTriageService(patients: PatientRepository, now: Clock = ()
      */
     callNext(): Patient | undefined {
       return patients.claimNextWaiting(now().toISOString());
+    },
+
+    /**
+     * A nurse re-assesses a waiting patient (e.g. they got worse). Only the level changes;
+     * the original arrival time is kept, so they don't lose the time already waited (D6).
+     */
+    retriage(id: number, triageLevel: TriageLevel): Patient {
+      const updated = patients.updateWaitingTriageLevel(id, triageLevel);
+      if (updated) return updated;
+
+      // Nothing changed: find out why, to send the right error.
+      const patient = patients.findById(id);
+      if (!patient) throw notFound(`Patient ${id} not found`);
+      throw invalidTransition(
+        `Patient ${id} is ${patient.status}; only WAITING patients can be re-triaged`,
+      );
     },
   };
 }
