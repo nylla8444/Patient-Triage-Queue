@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { validationError } from "../errors.js";
+import { PATIENT_STATUSES } from "./triage.types.js";
 
 /**
  * Body of POST /patients. Fields the client must not control (id, status, arrivedAt)
@@ -40,6 +41,16 @@ export const patientIdSchema = z
   .string()
   .regex(/^[1-9]\d*$/, "id must be a positive whole number")
   .transform(Number);
+
+/**
+ * Query string of GET /patients. ?status is optional; without it, everyone is listed.
+ * Must match exactly (e.g. "waiting" is rejected), same as the strict body rules (D18).
+ */
+export const listPatientsQuerySchema = z.object({
+  status: z
+    .enum(PATIENT_STATUSES, { error: `status must be one of ${PATIENT_STATUSES.join(", ")}` })
+    .optional(),
+});
 
 /**
  * Checks a value against a schema and returns the clean, typed result,

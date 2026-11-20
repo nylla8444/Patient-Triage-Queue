@@ -1,6 +1,11 @@
 import { Router } from "express";
 import type { TriageService } from "./triage.service.js";
-import { parseOrThrow, patientIdSchema, registerPatientSchema } from "./triage.validation.js";
+import {
+  listPatientsQuerySchema,
+  parseOrThrow,
+  patientIdSchema,
+  registerPatientSchema,
+} from "./triage.validation.js";
 
 /** HTTP only: read the request, call the service, send the response. */
 export function createTriageRouter(service: TriageService) {
@@ -13,6 +18,13 @@ export function createTriageRouter(service: TriageService) {
     res.status(201).location(`/patients/${patient.id}`).json(patient);
   });
 
+  router.get("/patients", (req, res) => {
+    const { status } = parseOrThrow(listPatientsQuerySchema, req.query, "query");
+    const patients = service.listPatients(status);
+
+    res.json({ count: patients.length, data: patients });
+  });
+
   router.get("/patients/:id", (req, res) => {
     const id = parseOrThrow(patientIdSchema, req.params.id, "id");
 
@@ -23,6 +35,18 @@ export function createTriageRouter(service: TriageService) {
     const queue = service.getQueue();
 
     res.json({ count: queue.length, data: queue });
+  });
+
+  router.post("/queue/next", (_req, res) => {
+    const patient = service.callNext();
+
+    if (!patient) {
+      // Empty queue: the request worked, there's just nobody to call (D10).
+      res.status(204).end();
+      return;
+    }
+
+    res.json(patient);
   });
 
   return router;

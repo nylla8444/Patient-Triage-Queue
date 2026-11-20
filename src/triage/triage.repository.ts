@@ -42,11 +42,33 @@ function toPatient(row: PatientRow): Patient {
  * The queue ordering rule (PLAN §5, D3, D5): most urgent level first, then whoever
  * arrived first, then lowest id as a final tie-break. The ORDER BY matches the
  * idx_queue_order index column for column, so SQLite reads rows already sorted.
+ *
+ * Defined once and used by both "view the queue" and "call next", so the patient
+ * at position 1 is always the one who gets called (D22).
  */
+const QUEUE_ORDER = "ORDER BY triage_level ASC, arrived_at ASC, id ASC";
+
 export const WAITING_QUEUE_SQL = `
   SELECT * FROM patients
   WHERE status = 'WAITING'
-  ORDER BY triage_level ASC, arrived_at ASC, id ASC
+  ${QUEUE_ORDER}
+`;
+
+/**
+ * Picks the next waiting patient AND marks them IN_TREATMENT in one statement (D8).
+ * There is no gap between "choose" and "claim" where another request could take
+ * the same patient. No row returned = the queue is empty.
+ */
+export const CALL_NEXT_SQL = `
+  UPDATE patients
+  SET status = 'IN_TREATMENT', called_at = ?
+  WHERE id = (
+    SELECT id FROM patients
+    WHERE status = 'WAITING'
+    ${QUEUE_ORDER}
+    LIMIT 1
+  )
+  RETURNING *
 `;
 
 /** All SQL for patients lives here. */
@@ -63,6 +85,14 @@ export function createPatientRepository(db: Db) {
 
   const waitingQueueStatement = db.prepare<[], PatientRow>(WAITING_QUEUE_SQL);
 
+  const callNextStatement = db.prepare<[string], PatientRow>(CALL_NEXT_SQL);
+
+  // Registration order (id). This is NOT queue order: GET /queue is the place for that.
+  const findAllStatement = db.prepare<[], PatientRow>("SELECT * FROM patients ORDER BY id");
+  const findByStatusStatement = db.prepare<[PatientStatus], PatientRow>(
+    "SELECT * FROM patients WHERE status = ? ORDER BY id",
+  );
+
   return {
     insert(record: NewPatientRecord): Patient {
       const row = insertStatement.get(record);
@@ -78,6 +108,18 @@ export function createPatientRepository(db: Db) {
     /** Waiting patients, already in queue order. */
     findWaitingInQueueOrder(): Patient[] {
       return waitingQueueStatement.all().map(toPatient);
+    },
+
+    /** Moves the next waiting patient to IN_TREATMENT and returns them, or undefined if nobody is waiting. */
+    claimNextWaiting(calledAt: string): Patient | undefined {
+      const row = callNextStatement.get(calledAt);
+      return row ? toPatient(row) : undefined;
+    },
+
+    /** Every patient ever registered (or only those with one status), oldest registration first. */
+    findAll(status?: PatientStatus): Patient[] {
+      const rows = status ? findByStatusStatement.all(status) : findAllStatement.all();
+      return rows.map(toPatient);
     },
   };
 }

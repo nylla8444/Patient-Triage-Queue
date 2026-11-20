@@ -1,6 +1,6 @@
 import { notFound } from "../errors.js";
 import type { PatientRepository } from "./triage.repository.js";
-import type { Patient, QueueEntry } from "./triage.types.js";
+import type { Patient, PatientStatus, QueueEntry } from "./triage.types.js";
 import type { RegisterPatientInput } from "./triage.validation.js";
 
 /** Returns the current time. Tests pass a fixed clock so timestamps are predictable. */
@@ -33,6 +33,11 @@ export function createTriageService(patients: PatientRepository, now: Clock = ()
       return patient;
     },
 
+    /** All patients in the database, whatever their status (records are never deleted, D9). */
+    listPatients(status?: PatientStatus): Patient[] {
+      return patients.findAll(status);
+    },
+
     /** Waiting patients in the order they will be seen, with their position and waiting time. */
     getQueue(): QueueEntry[] {
       const current = now();
@@ -42,6 +47,14 @@ export function createTriageService(patients: PatientRepository, now: Clock = ()
         ...patient,
         waitingMinutes: minutesBetween(new Date(patient.arrivedAt), current),
       }));
+    },
+
+    /**
+     * Calls the patient at position 1: they leave the queue and go to IN_TREATMENT.
+     * Returns undefined when nobody is waiting, which is normal, not an error (D10).
+     */
+    callNext(): Patient | undefined {
+      return patients.claimNextWaiting(now().toISOString());
     },
   };
 }

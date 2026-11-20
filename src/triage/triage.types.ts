@@ -1,7 +1,10 @@
 /** 1 = most urgent (Resuscitation) … 5 = least urgent (Non-urgent). See D4. */
 export type TriageLevel = 1 | 2 | 3 | 4 | 5;
 
-export type PatientStatus = "WAITING" | "IN_TREATMENT" | "DONE" | "LEFT";
+/** Every status a patient can have, in lifecycle order (PLAN §6). */
+export const PATIENT_STATUSES = ["WAITING", "IN_TREATMENT", "DONE", "LEFT"] as const;
+
+export type PatientStatus = (typeof PATIENT_STATUSES)[number];
 
 /** A patient as the API returns it (camelCase). The database uses snake_case. */
 export interface Patient {
