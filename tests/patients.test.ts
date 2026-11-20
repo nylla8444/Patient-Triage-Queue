@@ -158,7 +158,9 @@ describe("POST /patients", () => {
     const res = await request(app).post("/patients").send(body);
 
     expect(res.status).toBe(400);
-    expect(res.body.error.message).toBe("Request body must be a JSON object");
+    expect(res.body.error.message).toBe(
+      "Request body must be a JSON object, sent with Content-Type: application/json",
+    );
   });
 });
 

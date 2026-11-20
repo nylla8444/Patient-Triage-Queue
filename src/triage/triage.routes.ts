@@ -1,5 +1,7 @@
 import { Router } from "express";
+import { methodNotAllowed } from "../middleware/errorHandler.js";
 import type { TriageService } from "./triage.service.js";
+import type { TriageLevel } from "./triage.types.js";
 import {
   closeVisitSchema,
   listPatientsQuerySchema,
@@ -8,63 +10,83 @@ import {
   registerPatientSchema,
   retriageSchema,
 } from "./triage.validation.js";
-import type { TriageLevel } from "./triage.types.js";
 
-/** HTTP only: read the request, call the service, send the response. */
+/**
+ * HTTP only: read the request, call the service, send the response.
+ * Each path lists its methods, then methodNotAllowed answers any other method with 405.
+ */
 export function createTriageRouter(service: TriageService) {
   const router = Router();
 
-  router.post("/patients", (req, res) => {
-    const input = parseOrThrow(registerPatientSchema, req.body);
-    const patient = service.registerPatient(input);
+  router
+    .route("/patients")
+    .get((req, res) => {
+      const { status } = parseOrThrow(listPatientsQuerySchema, req.query, "query");
+      const patients = service.listPatients(status);
 
-    res.status(201).location(`/patients/${patient.id}`).json(patient);
-  });
+      res.json({ count: patients.length, data: patients });
+    })
+    .post((req, res) => {
+      const input = parseOrThrow(registerPatientSchema, req.body);
+      const patient = service.registerPatient(input);
 
-  router.get("/patients", (req, res) => {
-    const { status } = parseOrThrow(listPatientsQuerySchema, req.query, "query");
-    const patients = service.listPatients(status);
+      res.status(201).location(`/patients/${patient.id}`).json(patient);
+    })
+    .all(methodNotAllowed("GET", "POST"));
 
-    res.json({ count: patients.length, data: patients });
-  });
+  router
+    .route("/patients/:id")
+    .get((req, res) => {
+      const id = parseOrThrow(patientIdSchema, req.params.id, "id");
 
-  router.get("/patients/:id", (req, res) => {
-    const id = parseOrThrow(patientIdSchema, req.params.id, "id");
+      res.json(service.getPatient(id));
+    })
+    // No DELETE on purpose: records are never deleted (D9).
+    .all(methodNotAllowed("GET"));
 
-    res.json(service.getPatient(id));
-  });
+  router
+    .route("/patients/:id/triage")
+    .patch((req, res) => {
+      const id = parseOrThrow(patientIdSchema, req.params.id, "id");
+      const { triageLevel } = parseOrThrow(retriageSchema, req.body);
 
-  router.patch("/patients/:id/triage", (req, res) => {
-    const id = parseOrThrow(patientIdSchema, req.params.id, "id");
-    const { triageLevel } = parseOrThrow(retriageSchema, req.body);
+      res.json(service.retriage(id, triageLevel as TriageLevel));
+    })
+    .all(methodNotAllowed("PATCH"));
 
-    res.json(service.retriage(id, triageLevel as TriageLevel));
-  });
+  router
+    .route("/patients/:id/status")
+    .patch((req, res) => {
+      const id = parseOrThrow(patientIdSchema, req.params.id, "id");
+      const { status } = parseOrThrow(closeVisitSchema, req.body);
 
-  router.patch("/patients/:id/status", (req, res) => {
-    const id = parseOrThrow(patientIdSchema, req.params.id, "id");
-    const { status } = parseOrThrow(closeVisitSchema, req.body);
+      res.json(service.closeVisit(id, status));
+    })
+    .all(methodNotAllowed("PATCH"));
 
-    res.json(service.closeVisit(id, status));
-  });
+  router
+    .route("/queue")
+    .get((_req, res) => {
+      const queue = service.getQueue();
 
-  router.get("/queue", (_req, res) => {
-    const queue = service.getQueue();
+      res.json({ count: queue.length, data: queue });
+    })
+    .all(methodNotAllowed("GET"));
 
-    res.json({ count: queue.length, data: queue });
-  });
+  router
+    .route("/queue/next")
+    .post((_req, res) => {
+      const patient = service.callNext();
 
-  router.post("/queue/next", (_req, res) => {
-    const patient = service.callNext();
+      if (!patient) {
+        // Empty queue: the request worked, there's just nobody to call (D10).
+        res.status(204).end();
+        return;
+      }
 
-    if (!patient) {
-      // Empty queue: the request worked, there's just nobody to call (D10).
-      res.status(204).end();
-      return;
-    }
-
-    res.json(patient);
-  });
+      res.json(patient);
+    })
+    .all(methodNotAllowed("POST"));
 
   return router;
 }
